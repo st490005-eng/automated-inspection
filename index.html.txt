@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>南投特用作物病蟲害動態監測儀表板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#eef2ec; --card:#fff; --ink:#1d2b1f; --quiet:#5f6b5f; --line:#dbe3d8;
+          --side:#17492b; --side2:#1f5d38; --green:#2f7d32; --red:#c62828; --amber:#e08a00; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif; }
+  .app { display:grid; grid-template-columns:200px 1fr; min-height:100vh; }
+  aside { background:var(--side); color:#fff; padding:16px 10px; position:sticky; top:0; height:100vh; }
+  .brand { font-weight:700; font-size:16px; padding:6px 10px 16px; display:flex; gap:8px; align-items:center; }
+  nav a { display:block; padding:10px 12px; border-radius:8px; color:#d7e8da; text-decoration:none; font-size:14px; cursor:pointer; margin-bottom:2px; }
+  nav a:hover, nav a.on { background:var(--side2); color:#fff; }
+  .content { padding:16px 20px 28px; min-width:0; }
+  header { text-align:center; margin-bottom:14px; }
+  h1 { margin:0; font-size:24px; color:var(--side); }
+  .sub { color:var(--quiet); font-size:13px; }
+  .bar { display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px; }
+  .kpi { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
+  .kpi b { font-size:26px; display:block; } .kpi span { font-size:12px; color:var(--quiet); }
+  .grid { display:grid; grid-template-columns:repeat(12,1fr); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; min-width:0; scroll-margin-top:12px; }
+  .card h2 { margin:0 0 10px; font-size:16px; color:var(--side); }
+  .s6 { grid-column:span 6; } .s12 { grid-column:span 12; }
+  #map { text-align:center; } #map svg { width:100%; max-height:420px; }
+  .legend { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--quiet); margin-top:6px; }
+  .legend i { flex:0 0 140px; height:10px; border-radius:5px; background:linear-gradient(90deg,#fff3a0,#ffb300,#ef5350,#b71c1c); }
+  #mapRank { margin-top:6px; }
+  .chartbox { height:330px; }
+  select, button, input { font:inherit; padding:6px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  button { cursor:pointer; }
+  button.pri { background:var(--green); color:#fff; border:0; font-weight:600; }
+  .alertbox { display:flex; gap:12px; }
+  .alertbox .ic { width:44px; height:44px; border-radius:8px; background:var(--red); color:#fff; display:flex; align-items:center; justify-content:center; font-size:24px; flex:none; }
+  .alertbox.ok .ic { background:var(--green); }
+  .alertbox h3 { margin:0 0 6px; color:var(--red); font-size:17px; } .alertbox.ok h3 { color:var(--green); }
+  .alertbox dl { margin:0; display:grid; grid-template-columns:64px 1fr; row-gap:3px; font-size:14px; }
+  .alertbox dt { color:var(--quiet); } .alertbox dd { margin:0; }
+  .alist { margin-top:10px; border-top:1px solid var(--line); padding-top:8px; font-size:13px; }
+  .alist div { padding:4px 0; display:flex; justify-content:space-between; gap:8px; }
+  .tag { padding:2px 8px; border-radius:10px; color:#fff; font-size:12px; white-space:nowrap; }
+  .exp { display:flex; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .tablewrap { overflow-x:auto; max-height:300px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+  .hg { display:grid; gap:6px; }
+  .cell { border-radius:6px; padding:8px 4px; text-align:center; font-size:12px; color:#fff; }
+  .rl { font-size:12px; color:var(--quiet); align-self:center; }
+  @media (max-width:900px) {
+    .app { grid-template-columns:1fr; } aside { position:static; height:auto; display:flex; overflow-x:auto; padding:8px; }
+    .brand { display:none; } nav { display:flex; gap:4px; } nav a { white-space:nowrap; margin:0; }
+    .s6 { grid-column:span 12; } .kpis { grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+<aside>
+  <div class="brand">🌿 南投縣</div>
+  <nav id="nav">
+    <a data-t="top" class="on">總覽</a>
+    <a data-t="secMap">地圖熱點</a>
+    <a data-t="secTrend">趨勢分析</a>
+    <a data-t="secAlert">警示通知</a>
+    <a data-t="secHist">歷史記錄</a>
+    <a data-t="secHist">資料匯出</a>
+    <a data-t="secSet">系統設定</a>
+  </nav>
+</aside>
+<div class="content" id="top">
+  <header>
+    <h1>南投特用作物病蟲害動態監測儀表板</h1>
+    <div class="sub" id="status">讀取中…</div>
+  </header>
+  <div class="bar">
+    <div>
+      <select id="rangeSel">
+        <option value="1">最近 24 小時</option><option value="7" selected>最近 7 天</option>
+        <option value="30">最近 30 天</option><option value="0">全部</option>
+      </select>
+      <select id="gardenSel"><option value="">全部茶園</option></select>
+      <select id="srcSel"><option value="auto" selected>資料來源：自動</option><option value="ai">AI 辨識</option><option value="car">車體回報</option><option value="all">全部</option></select>
+    </div>
+    <div class="sub">資料每 10 秒自動更新</div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><b id="kN">0</b><span>巡檢站次</span></div>
+    <div class="kpi"><b id="kD">0</b><span>發現病灶</span></div>
+    <div class="kpi"><b id="kS">0</b><span>定向噴灑</span></div>
+    <div class="kpi"><b id="kH">0</b><span>中度以上警示</span></div>
+  </div>
+  <div class="grid">
+    <section class="card s6" id="secMap"><h2>病害熱點地圖</h2><div id="map"></div>
+      <div class="legend">低 <i></i> 高　（顏色越紅＝病灶越多、越嚴重）</div><div class="sub" id="mapRank"></div>
+      <p class="sub">示意地圖：位置依茶園經緯度換算；熱度以輕 1、中 2、重 3 分加權</p></section>
+    <section class="card s6" id="secTrend"><h2>時間序列趨勢</h2><div class="chartbox"><canvas id="trend"></canvas></div></section>
+    <section class="card s6" id="secAlert"><h2>警示通知</h2><div id="alertBox"></div><div class="alist" id="alertList"></div></section>
+    <section class="card s6"><h2>茶園內病灶熱力圖（最近一次巡檢）</h2><div id="heat"></div>
+      <p class="sub">R＝去程側、L＝回程側；綠＝健康、黃＝輕度、橘＝中度、紅＝重度</p></section>
+    <section class="card s12" id="secHist"><h2>歷史記錄與匯出</h2>
+      <div class="exp"><button class="pri" id="csvBtn">匯出 CSV</button><button class="pri" id="xlsBtn">匯出 Excel（.xls）</button></div>
+      <div class="tablewrap"><table id="tbl"></table></div></section>
+    <section class="card s12" id="secSet"><h2>系統設定</h2>
+      <div class="sub" id="setInfo"></div>
+      <p><input id="dbIn" size="60" placeholder="Firebase Realtime Database 網址"> <button id="dbBtn">套用並重新載入</button>
+      <button id="demoBtn">切換示範資料</button></p></section>
+  </div>
+</div>
+</div>
+<script>
+// ===== 設定 =====
+const Q = new URLSearchParams(location.search);
+let DB = Q.get("db") || "https://diseases-12b93-default-rtdb.asia-southeast1.firebasedatabase.app";
+if (!/^https?:\/\//.test(DB)) DB = "https://" + DB;
+DB = DB.replace(/\/+$/, "");
+const DEMO = Q.has("demo");
+const DEVICE = Q.get("device") || "mbot2-01";   // 要和 mBot2 程式的 DEVICE 相同
+// 車體回報（/mbot2/車號/runs）沒有茶園資訊，一律掛在這個茶園底下；要改茶園就改這裡
+const CAR_GARDEN = { id: "MJ-A", name: "名間松柏嶺A區", lat: 23.8341, lng: 120.6452 };
+const REFRESH_MS = 10000;
+const SEV = { none: 0, unknown: 1, low: 1, medium: 2, high: 3 };
+const SEVC = { unknown: "#6d4c41", none: "#2f7d32", low: "#c9b400", medium: "#e08a00", high: "#c62828" };
+const SEVT = { unknown: "未知", none: "健康", low: "輕度", medium: "中度", high: "重度" };
+const DIS = { anthracnose: "炭疽病", mite_damage: "蟎害（茶紅蜘蛛）", white_rot: "白絞病", unclassified: "未分類病灶（車體回報）" };
+const LINEC = ["#c62828", "#2e7d32", "#1565c0", "#8e24aa", "#ef6c00"];
+const dn = k => DIS[k] || k;
+const $ = id => document.getElementById(id);
+let ai = [], car = [], gardens = {}, map, heatLayer, dots, chart;
+
+// ===== 資料 =====
+function demoData() {
+  const G = { "MJ-A": ["名間松柏嶺A區", 23.8341, 120.6452], "PL-B": ["埔里B區", 23.9645, 120.9693],
+              "LG-C": ["鹿谷凍頂C區", 23.7449, 120.7871], "YC-D": ["魚池D區", 23.8963, 120.9347], "RA-E": ["仁愛E區", 24.0245, 121.1360] };
+  const ds = ["anthracnose", "mite_damage", "white_rot"], sv = ["low", "medium", "high"], recs = [];
+  const now = Date.now(), route = [["去程","R",1],["去程","R",2],["去程","R",3],["回程","L",3],["回程","L",2],["回程","L",1]];
+  Object.entries(G).forEach(([id, g], gi) => {
+    for (let d = 13; d >= 0; d--) route.forEach(([trip, side, st], i) => {
+      const sick = Math.random() < 0.12 + gi * 0.05 + (13 - d) * 0.01;
+      const s = sick ? sv[Math.floor(Math.random() * 3)] : "none";
+      recs.push({ time: now - d * 864e5 - gi * 36e5 + i * 8000, garden_id: id, garden: g[0], lat: g[1], lng: g[2], trip, side, station: st,
+        disease: sick ? ds[Math.floor(Math.random() * 3)] : null, confidence: sick ? +(0.6 + Math.random() * 0.35).toFixed(2) : 0,
+        severity: s, sprayed: sick });
+    });
+  });
+  const gs = {}; Object.entries(G).forEach(([id, g]) => gs[id] = { name: g[0], lat: g[1], lng: g[2] });
+  return { det: recs, gar: gs };
+}
+async function load() {
+  try {
+    if (DEMO) { const d = demoData(); ai = d.det.map(r => ({ ...r, src: "ai" })); car = []; gardens = d.gar; }
+    else {
+      const rq = encodeURIComponent('"$key"');
+      const [det, gar, runs] = await Promise.all([
+        fetch(`${DB}/detections.json`).then(r => r.json()), fetch(`${DB}/gardens.json`).then(r => r.json()),
+        fetch(`${DB}/mbot2/${DEVICE}/runs.json?orderBy=${rq}&limitToLast=100`).then(r => r.json()).catch(() => null)]);
+      if (det && det.error) throw new Error(det.error);
+      ai = Object.values(det || {}).sort((a, b) => a.time - b.time).map(r => ({ ...r, src: "ai" }));
+      car = carRows(runs); gardens = gar || {};
+      if (!gardens[CAR_GARDEN.id]) gardens[CAR_GARDEN.id] = { name: CAR_GARDEN.name, lat: CAR_GARDEN.lat, lng: CAR_GARDEN.lng };
+    }
+    $("status").textContent = (DEMO ? "示範資料｜" : "") + "最後更新 " + new Date().toLocaleTimeString("zh-TW");
+    fillGardens(); render();
+  } catch (e) { $("status").textContent = "讀取失敗：請確認資料庫網址與規則（" + e.message + "）"; }
+}
+// 車體回報：每一站一筆；有噴灑＝未分類病灶（車子不知道病害種類與嚴重程度）
+function carRows(runs) {
+  const out = [];
+  Object.values(runs || {}).forEach(run => {
+    const st = run && run.stations;
+    if (!st || typeof st !== "object") return;
+    Object.values(st).forEach(r => out.push({ time: typeof r.time === "number" ? r.time : (run.start || 0),
+      garden_id: CAR_GARDEN.id, garden: CAR_GARDEN.name, lat: CAR_GARDEN.lat, lng: CAR_GARDEN.lng,
+      trip: r.trip, side: r.side, station: r.station, disease: r.sprayed ? "unclassified" : null, confidence: 0,
+      severity: r.sprayed ? "unknown" : "none", sprayed: !!r.sprayed, src: "car" }));
+  });
+  return out.sort((a, b) => a.time - b.time);
+}
+function fillGardens() {
+  const all = ai.concat(car), sel = $("gardenSel"), cur = sel.value, ids = [...new Set(all.map(r => r.garden_id))];
+  sel.innerHTML = '<option value="">全部茶園</option>' + ids.map(id => `<option value="${id}">${(all.find(r => r.garden_id === id) || {}).garden || id}</option>`).join("");
+  sel.value = ids.includes(cur) ? cur : "";
+}
+function rows() {
+  const g = $("gardenSel").value, d = +$("rangeSel").value, t0 = d ? Date.now() - d * 864e5 : 0;
+  const f = r => (!g || r.garden_id === g) && r.time >= t0, a = ai.filter(f), c = car.filter(f), m = $("srcSel").value;
+  return m === "ai" ? a : m === "car" ? c : m === "all" ? a.concat(c).sort((x, y) => x.time - y.time) : (a.length ? a : c);
+}
+
+// ===== 繪圖 =====
+function render() {
+  const data = rows(), sick = data.filter(r => r.disease);
+  $("kN").textContent = data.length; $("kD").textContent = sick.length;
+  $("kS").textContent = data.filter(r => r.sprayed).length;
+  $("kH").textContent = sick.filter(r => SEV[r.severity] >= 2).length;
+  drawMap(sick); drawTrend(sick); drawAlert(sick); drawHeat(data); drawTable(data);
+  $("setInfo").textContent = "資料來源：" + DB + "（/detections、/gardens，以及車體回報 /mbot2/" + DEVICE + "/runs）｜AI " + ai.length + " 筆、車體 " + car.length + " 筆" + (DEMO ? "｜目前為示範資料" : "");
+}
+// ===== 南投縣示意地圖（自繪，不使用外部地圖資料） =====
+const SW = 500, SH = 555;
+const DIST = [  // [鄉鎮, 多邊形座標, 標籤x, 標籤y, 底色]
+  ["草屯鎮","18,165 60,155 115,158 135,175 125,205 75,215 18,210",62,186,"#ffd600"],
+  ["南投市","18,210 75,215 70,245 55,260 18,255",42,236,"#f5b942"],
+  ["名間鄉","10,255 55,260 75,255 85,290 45,295 12,290",38,278,"#ffd54f"],
+  ["中寮鄉","75,215 125,205 135,175 165,215 160,255 140,270 85,290 75,255 70,245",110,242,"#ffe96b"],
+  ["國姓鄉","135,105 170,90 210,85 200,125 180,150 165,215 135,175 115,158 105,140",150,130,"#9ccc3a"],
+  ["埔里鎮","180,150 200,125 235,150 285,175 270,195 235,215 190,225 165,215",225,182,"#5f9a1f"],
+  ["魚池鄉","165,215 190,225 235,215 240,260 215,290 175,295 158,285 160,255",197,258,"#5fa57a"],
+  ["仁愛鄉","210,85 260,70 300,25 395,5 440,95 425,170 430,215 385,290 330,262 245,290 240,260 235,215 270,195 285,175 235,150 200,125",335,140,"#2f7d0b"],
+  ["信義鄉","200,280 245,290 330,262 385,290 390,360 380,440 330,480 300,520 270,545 250,535 215,510 150,490 122,445 125,400 135,350 170,335 172,310 200,305",245,410,"#3d8de0"],
+  ["水里鄉","150,235 160,255 158,285 175,295 215,290 200,305 172,310 170,340 130,330 125,300 140,270",152,312,"#1e9be0"],
+  ["集集鎮","85,285 130,275 135,300 128,318 95,312 80,300",104,298,"#8fd0f0"],
+  ["鹿谷鄉","80,300 95,312 128,318 130,330 135,350 125,400 105,420 70,390 62,330",98,360,"#eda078"],
+  ["竹山鎮","45,295 85,290 80,300 62,330 70,390 105,420 130,435 60,425 15,420 12,330",48,385,"#ee8a5f"]
+];
+function project(lat, lng) {   // 經緯度 → 示意地圖座標
+  const x = (lng - 120.585) / 0.75 * 480, y = (24.2 - lat) / 0.75 * SH;
+  return [Math.max(15, Math.min(SW - 15, x)), Math.max(15, Math.min(SH - 15, y))];
+}
+function drawMap(sick) {
+  const byG = {};
+  sick.forEach(r => { if (r.lat == null || r.lng == null) return;
+    const g = (byG[r.garden_id] = byG[r.garden_id] || { lat: r.lat, lng: r.lng, name: r.garden, n: 0, w: 0 });
+    g.n++; g.w += SEV[r.severity] || 1; });
+  const list = Object.values(byG).sort((a, b) => b.w - a.w), max = Math.max(1, ...list.map(g => g.w));
+  let svg = `<svg viewBox="0 0 ${SW} ${SH}" xmlns="http://www.w3.org/2000/svg"><defs>
+    <radialGradient id="hg"><stop offset="0" stop-color="#b71c1c" stop-opacity=".95"/><stop offset=".4" stop-color="#ef5350" stop-opacity=".7"/>
+      <stop offset=".7" stop-color="#ffb300" stop-opacity=".4"/><stop offset="1" stop-color="#fff3a0" stop-opacity="0"/></radialGradient>
+    <clipPath id="cl">${DIST.map(d => `<polygon points="${d[1]}" stroke="#000" stroke-width="16" stroke-linejoin="round"/>`).join("")}</clipPath></defs>`;
+  svg += DIST.map(d => `<polygon points="${d[1]}" fill="#e6ece3" stroke="#e6ece3" stroke-width="16" stroke-linejoin="round"/>`).join("");
+  svg += DIST.map(d => `<polygon points="${d[1]}" fill="${d[4]}" fill-opacity=".38" stroke="#fff" stroke-width="2" stroke-linejoin="round"><title>${d[0]}</title></polygon>`).join("");
+  svg += '<g clip-path="url(#cl)">' + list.map(g => { const [x, y] = project(g.lat, g.lng), k = g.w / max, r = 45 + 55 * k;
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#hg)" opacity="${0.55 + 0.45 * k}"/>`; }).join("") + "</g>";
+  svg += DIST.map(d => `<text x="${d[2]}" y="${d[3]}" text-anchor="middle" font-size="14" font-weight="600" fill="#1d2b1f" paint-order="stroke" stroke="#fff" stroke-width="3">${d[0]}</text>`).join("");
+  svg += list.map(g => { const [x, y] = project(g.lat, g.lng);
+    return `<circle cx="${x}" cy="${y}" r="5" fill="#fff" stroke="#b71c1c" stroke-width="2"><title>${g.name}：病灶 ${g.n} 筆，熱度 ${g.w}</title></circle>`; }).join("");
+  $("map").innerHTML = svg + "</svg>";
+  $("mapRank").innerHTML = list.length ? "熱點排行：" + list.slice(0, 5).map((g, i) => `${i + 1}. ${g.name}（${g.n} 筆）`).join("　") : "所選範圍內沒有病灶，地圖不顯示熱點";
+}
+function drawTrend(sick) {
+  const days = [...new Set(sick.map(r => new Date(r.time).toLocaleDateString("sv-SE")))].sort();
+  const kinds = [...new Set(sick.map(r => r.disease))];
+  const sets = kinds.map((k, i) => ({ label: dn(k), borderColor: LINEC[i % 5], backgroundColor: LINEC[i % 5], tension: .3, pointRadius: 3,
+    data: days.map(d => sick.filter(r => r.disease === k && new Date(r.time).toLocaleDateString("sv-SE") === d).length) }));
+  if (chart) chart.destroy();
+  chart = new Chart($("trend"), { type: "line", data: { labels: days, datasets: sets },
+    options: { maintainAspectRatio: false, plugins: { legend: { position: "top" } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: "病灶數 (Count)" } } } } });
+}
+function drawAlert(sick) {
+  const ord = [...sick].sort((a, b) => (SEV[b.severity] - SEV[a.severity]) || (b.time - a.time));
+  const top = ord[0], box = $("alertBox");
+  if (!top) { box.className = "alertbox ok"; box.innerHTML = '<div class="ic">✓</div><div><h3>目前沒有病灶紀錄</h3><div class="sub">所選範圍內未偵測到病蟲害</div></div>'; $("alertList").innerHTML = ""; return; }
+  box.className = "alertbox";
+  box.innerHTML = `<div class="ic">!</div><div><h3>最嚴重案例偵測</h3><dl>
+    <dt>地點</dt><dd>${top.garden} ${top.side}${top.station}（${top.trip}）</dd><dt>病害</dt><dd>${dn(top.disease)}</dd>
+    <dt>嚴重度</dt><dd><span class="tag" style="background:${SEVC[top.severity]}">${SEVT[top.severity]}</span></dd>
+    <dt>時間</dt><dd>${new Date(top.time).toLocaleString("zh-TW")}</dd></dl></div>`;
+  const recent = sick.filter(r => SEV[r.severity] >= 2).slice(-5).reverse();
+  $("alertList").innerHTML = recent.length ? "<b>近期中度以上警示</b>" + recent.map(r =>
+    `<div><span>${new Date(r.time).toLocaleString("zh-TW")}　${r.garden} ${r.side}${r.station}　${dn(r.disease)}</span><span class="tag" style="background:${SEVC[r.severity]}">${SEVT[r.severity]}</span></div>`).join("") : "";
+}
+function drawHeat(data) {
+  const box = $("heat");
+  if (!data.length) { box.innerHTML = '<p class="sub">尚無資料</p>'; return; }
+  const last = data[data.length - 1], run = data.filter(r => r.garden_id === last.garden_id && last.time - r.time < 300e3);
+  const n = Math.max(3, ...run.map(r => r.station));
+  let h = `<div class="hg" style="grid-template-columns:40px repeat(${n},1fr)">`;
+  ["L", "R"].forEach(side => { h += `<div class="rl">${side} 側</div>`;
+    for (let s = 1; s <= n; s++) { const r = run.filter(x => x.side === side && x.station === s).pop();
+      h += `<div class="cell" style="background:${r ? SEVC[r.severity] : "#c9d1c6"}">${side}${s}<br>${r ? (r.disease ? dn(r.disease) : "健康") : "—"}</div>`; } });
+  box.innerHTML = h + `</div><p class="sub">${last.garden}｜${new Date(last.time).toLocaleString("zh-TW")}</p>`;
+}
+function drawTable(data) {
+  const head = "<tr><th>時間</th><th>茶園</th><th>趟次</th><th>位置</th><th>病害</th><th>信心</th><th>嚴重度</th><th>噴灑</th><th>來源</th></tr>";
+  $("tbl").innerHTML = head + [...data].reverse().slice(0, 100).map(r => `<tr><td>${new Date(r.time).toLocaleString("zh-TW")}</td><td>${r.garden}</td><td>${r.trip}</td>
+    <td>${r.side}${r.station}</td><td>${r.disease ? dn(r.disease) : "健康"}</td><td>${r.disease ? r.confidence : "—"}</td>
+    <td><span class="tag" style="background:${SEVC[r.severity] || "#999"}">${SEVT[r.severity] || r.severity}</span></td><td>${r.sprayed ? "是" : "否"}</td><td>${r.src === "car" ? "車體" : "AI"}</td></tr>`).join("");
+}
+
+// ===== 匯出 =====
+const COLS = ["time", "garden_id", "garden", "lat", "lng", "trip", "side", "station", "disease", "confidence", "severity", "sprayed", "src"];
+const cellv = (r, c) => c === "time" ? new Date(r.time).toISOString() : String(r[c] ?? "");
+function save(blob, name) { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); }
+$("csvBtn").onclick = () => {
+  const lines = [COLS.join(",")].concat(rows().map(r => COLS.map(c => '"' + cellv(r, c).replace(/"/g, '""') + '"').join(",")));
+  save(new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv" }), "病蟲害巡檢紀錄.csv");
+};
+$("xlsBtn").onclick = () => {
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const html = '<html><head><meta charset="utf-8"></head><body><table border="1"><tr>' + COLS.map(c => "<th>" + c + "</th>").join("") + "</tr>" +
+    rows().map(r => "<tr>" + COLS.map(c => "<td>" + esc(cellv(r, c)) + "</td>").join("") + "</tr>").join("") + "</table></body></html>";
+  save(new Blob([html], { type: "application/vnd.ms-excel" }), "病蟲害巡檢紀錄.xls");
+};
+
+// ===== 介面 =====
+$("rangeSel").onchange = $("gardenSel").onchange = $("srcSel").onchange = render;
+document.querySelectorAll("#nav a").forEach(a => a.onclick = () => {
+  document.querySelectorAll("#nav a").forEach(x => x.classList.remove("on")); a.classList.add("on");
+  $(a.dataset.t).scrollIntoView({ behavior: "smooth" });
+});
+$("dbIn").value = DB;
+$("dbBtn").onclick = () => { const v = $("dbIn").value.trim(); if (v) location.search = "?db=" + encodeURIComponent(v); };
+$("demoBtn").onclick = () => { location.search = DEMO ? (Q.get("db") ? "?db=" + encodeURIComponent(Q.get("db")) : "") : "?demo"; };
+load(); if (!DEMO) setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
