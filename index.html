@@ -116,7 +116,7 @@
 <script>
 // ===== 設定 =====
 const Q = new URLSearchParams(location.search);
-let DB = Q.get("db") || "https://diseases-12b93-default-rtdb.asia-southeast1.firebasedatabase.app";
+let DB = Q.get("db") || "https://skjhs-anson-default-rtdb.asia-southeast1.firebasedatabase.app";
 if (!/^https?:\/\//.test(DB)) DB = "https://" + DB;
 DB = DB.replace(/\/+$/, "");
 const DEMO = Q.has("demo");
